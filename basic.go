@@ -8,6 +8,10 @@ import (
 	"strings"
 	"log"
 	"html/template"
+	"time"
+	"crypto/md5"
+	"io"
+	"strconv"
 )
 
 func sayHelloName(w http.ResponseWriter, r *http.Request){
@@ -24,19 +28,37 @@ func sayHelloName(w http.ResponseWriter, r *http.Request){
 }
 
 func login(w http.ResponseWriter, r *http.Request){
-	fmt.Println("method: ", r.method)
+	fmt.Println("method: ", r.Method)
 	if r.Method == "GET" {
+		crutime := time.Now().Unix()
+		h := md5.New()
+		io.WriteString(h, strconv.FormatInt(crutime, 10))
+		token := fmt.Sprintf("%x", h.Sum(nil))
 		t, _ := template.ParseFiles("login.gtpl")
-		log.Println(t.Execute(w, nil))
+		t.Execute(w, token)
 	} else {
-		fmt.Println("username: ", r.Form["username"])
-		fmt.Println("password: ", r.Form["password"])
+		r.ParseForm()
+		token := r.Form.Get("token")
+		if token != "" {
+			// 验证token合法性
+		} else {
+			// 不存在token报错
+		}
+		fmt.Println("username length:", len(r.Form["username"][0]))
+		fmt.Println("username:", template.HTMLEscapeString(r.Form.Get("username"))) //输出到服务器端
+		fmt.Println("password:", template.HTMLEscapeString(r.Form.Get("password")))
+		template.HTMLEscape(w, []byte(r.Form.Get("username"))) //输出到客户端
 	}
 }
 
-func mian(){
+// 默认情况下，Handler里面是不会自动解析form的，必须显式的调用r.ParseForm()后，
+// 你才能对这个表单数据进行操作。我们修改一下代码，
+// 在fmt.Println("username:", r.Form["username"])之前加一行r.ParseForm(),重新编译
+
+func main(){
 	http.HandleFunc("/", sayHelloName)
-	err := http.ListenAndServe(":9000", nil)
+	http.HandleFunc("/login", login)
+	err := http.ListenAndServe(":9090", nil)
 	if err != nil{
 		log.Fatal("ListenAndServe: ", err)
 	}
